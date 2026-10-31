@@ -1,0 +1,129 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#123524"><link rel="manifest" href="manifest.json">
+<title>Rizq | Rescue surplus food</title>
+<style>
+:root{--ink:#123524;--leaf:#2e7d4f;--paper:#f3f6f1;--saffron:#f4b223;--chili:#c8402b;--tx:#17211b;--mut:#5d6b62;--ln:#dbe4dc}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--paper);color:var(--tx);padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+.top{background:var(--ink);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 18px 10px;display:flex;justify-content:space-between;align-items:center}
+.mark{font:700 32px/1.7 "Noto Nastaliq Urdu","Jameel Noori Nastaleeq",serif;color:var(--saffron)}
+.top small{opacity:.8;display:block;font-size:13px}
+main{padding:16px;max-width:560px;margin:0 auto}
+h1{font-size:34px;line-height:1.08;letter-spacing:-.02em;margin:10px 0 8px;font-weight:800}
+h2{font-size:20px;margin:6px 0 12px}
+.hero{background:var(--ink);color:#fff;padding:26px 18px 24px;margin:0}
+.hero p{color:#c9dccf;margin:0 0 14px;max-width:34ch}
+.hero .big{font-size:52px;font-weight:800;color:var(--saffron);line-height:1}
+.card{background:#fff;border:1px solid var(--ln);border-radius:14px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.chip{font-size:12px;font-weight:700;padding:3px 9px;border-radius:99px;background:#e7efe8;color:var(--ink)}
+.s-claimed,.s-picked_up{background:#fdf0cf;color:#6b4b00}.s-cancelled{background:#eee;color:#666}
+.left{font-weight:700;color:var(--leaf)}.left.hot{color:var(--chili)}
+label{display:block;font-size:14px;font-weight:600;margin:10px 0 4px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #b9c7bc;border-radius:10px;font:inherit;background:#fff}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:3px solid var(--saffron);outline-offset:1px}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:12px 16px;background:var(--ink);color:#fff;width:100%;margin-top:12px;cursor:pointer}
+button.ghost{background:#fff;color:var(--ink);border:1px solid var(--ink)}
+button.link{background:none;color:var(--leaf);width:auto;padding:6px 0;text-decoration:underline}
+.roles{display:grid;gap:8px}.roles label{border:1px solid #b9c7bc;border-radius:10px;padding:10px;margin:0;font-weight:500;display:flex;gap:10px;align-items:flex-start}
+.roles input{width:auto;margin-top:4px}
+.note{background:#fdf0cf;border-radius:10px;padding:12px;margin-bottom:12px;font-size:14px}
+.mut{color:var(--mut);font-size:14px}.err{color:var(--chili);font-weight:600}
+nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--ln);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+nav button{margin:0;border-radius:0;background:none;color:var(--mut);padding:16px 4px;flex:1;font-size:14px}
+nav button.on{color:var(--ink);box-shadow:inset 0 3px 0 var(--saffron)}
+.stat{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat div{background:#fff;border:1px solid var(--ln);border-radius:14px;padding:14px 8px;text-align:center}
+.stat b{display:block;font-size:28px;color:var(--ink)}
+#toast{position:fixed;left:16px;right:16px;bottom:90px;background:var(--ink);color:#fff;padding:12px 14px;border-radius:12px;display:none;z-index:9}
+@media print{nav,.top button,.noprint{display:none}}
+@media (prefers-reduced-motion:no-preference){#toast{transition:opacity .2s}}
+</style></head><body>
+<div id="app"></div><div id="toast" role="status"></div>
+<script src="config.js"></script>
+<script>
+const $=s=>document.querySelector(s),B=window.API_BASE||'';
+const S={u:JSON.parse(localStorage.getItem('u')||'null'),t:localStorage.getItem('t')||'',tab:'',pos:null,mode:'login'};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+async function api(p,m='GET',b){
+  const r=await fetch(B+'/api'+p,{method:m,headers:{'Content-Type':'application/json',...(S.t&&{Authorization:'Bearer '+S.t})},body:b&&JSON.stringify(b)});
+  const j=await r.json().catch(()=>({}));
+  if(r.status===401&&S.t){out();throw new Error(j.error)}
+  if(!r.ok)throw new Error(j.error||'Request failed');return j}
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>t.style.display='none',3500)}
+function save(r){S.u=r.user;S.t=r.token;localStorage.setItem('u',JSON.stringify(r.user));localStorage.setItem('t',r.token);S.tab='';locate();go()}
+function out(){S.u=null;S.t='';localStorage.removeItem('u');localStorage.removeItem('t');go()}
+function locate(){navigator.geolocation&&navigator.geolocation.getCurrentPosition(p=>S.pos={lat:p.coords.latitude,lng:p.coords.longitude},()=>{})}
+const km=(a,b,c,d)=>{const r=Math.PI/180,x=Math.sin((c-a)*r/2)**2+Math.cos(a*r)*Math.cos(c*r)*Math.sin((d-b)*r/2)**2;return 12742*Math.asin(Math.sqrt(x))};
+const left=e=>{const ms=new Date(e)-Date.now();if(ms<=0)return['Expired',1];const h=Math.floor(ms/36e5),m=Math.floor(ms%36e5/6e4);return[(h?h+'h ':'')+m+'m left',ms<36e5]};
+const TABS={donor:[['share','Share food'],['mine','My food'],['impact','Impact']],receiver:[['open','Available'],['mine','My pickups'],['impact','Impact']],volunteer:[['open','Jobs'],['mine','My jobs'],['impact','Impact']],admin:[['verify','Verify'],['impact','Impact']]};
+const LBL={available:'Available',claimed:'Claimed, needs pickup',picked_up:'On the way',delivered:'Delivered',cancelled:'Cancelled'};
+
+function authView(){const reg=S.mode==='register';return`
+<div class="hero"><div class="mark">رزق</div><h1>Good food should reach a plate, not the bin.</h1>
+<p>Restaurants and wedding halls post surplus. Verified NGOs claim it. Volunteers deliver it.</p>
+<div class="big" id="m">0</div><div>meals delivered so far</div></div>
+<main><form id="auth" class="card"><h2>${reg?'Create your account':'Sign in'}</h2>
+${reg?`<div class="roles">
+<label><input type="radio" name="role" value="donor" checked><span><b>I have surplus food</b><br><span class="mut">Restaurant, bakery, caterer, wedding hall</span></span></label>
+<label><input type="radio" name="role" value="receiver"><span><b>We feed people in need</b><br><span class="mut">NGO, shelter, community kitchen (needs verification)</span></span></label>
+<label><input type="radio" name="role" value="volunteer"><span><b>I can deliver food</b><br><span class="mut">Bike, car or rickshaw</span></span></label></div>
+<label>Your name</label><input name="name" required><label>Organisation (if any)</label><input name="org"><label>City</label><input name="city" value="Lahore">`:''}
+<label>Phone number</label><input name="phone" type="tel" inputmode="tel" required placeholder="03001234567">
+<label>Password</label><input name="password" type="password" minlength="6" required>
+<button>${reg?'Create account':'Sign in'}</button>
+<button type="button" class="link" data-a="mode">${reg?'I already have an account':'New here? Create an account'}</button></form></main>`}
+
+function shareForm(){return`<h2>Share surplus food</h2><form id="share" class="card">
+<label>What is it?</label><input name="title" required placeholder="e.g. Biryani and naan from a 300-guest event">
+<label>Approximate meals</label><input name="meals" type="number" min="1" max="5000" required>
+<label>Pickup address</label><input name="address" required>
+<label>Notes (packaging, allergens, cooked time)</label><textarea name="details" rows="2"></textarea>
+<label>Must be collected within</label><select name="hours"><option value="2">2 hours</option><option value="4" selected>4 hours</option><option value="8">8 hours</option></select>
+<p class="mut">Only share freshly cooked or properly packed food that has not been served from plates.</p>
+<button>Post food</button></form>`}
+
+function card(d){const u=S.u,[t,hot]=d.status==='available'?left(d.expires):['',0];
+  const dist=S.pos&&d.lat?km(S.pos.lat,S.pos.lng,d.lat,d.lng).toFixed(1)+' km away':'';
+  const b=(a,l,c='')=>`<button class="${c}" data-a="${a}" data-id="${d.id}">${l}</button>`;let a='';
+  if(d.status==='available'){if(u.role==='receiver')a=b('claim','Claim these meals');if(u.id===d.donor_id)a=b('cancel','Cancel this post','ghost')}
+  if(d.status==='claimed'){if(u.role==='volunteer')a=b('pickup','Take this delivery');if(u.id===d.receiver_id)a=b('pickup','We collected it ourselves','ghost')}
+  if(d.status==='picked_up'&&[d.receiver_id,d.volunteer_id].includes(u.id))a=b('deliver',u.id===d.receiver_id?'Mark as received':'Mark as delivered');
+  const tel=[['Donor',d.donor,d.donor_phone],['Receiver',d.receiver,d.receiver_phone],['Volunteer',d.volunteer,d.volunteer_phone]].filter(x=>x[2]).map(x=>`<a href="tel:${esc(x[2])}">Call ${x[0].toLowerCase()} (${esc(x[1])})</a>`).join(' · ');
+  return`<div class="card"><div class="row"><b>${esc(d.title)}</b><span class="chip s-${d.status}">${LBL[d.status]}</span></div>
+<div>${d.meals} meals${dist?' · '+dist:''}</div><div class="mut">${esc(d.donor_org||d.donor)} · ${esc(d.address)}</div>
+${d.details?`<div class="mut">${esc(d.details)}</div>`:''}${t?`<div class="left ${hot?'hot':''}">${t}</div>`:''}
+${tel?`<div class="mut">${tel}</div>`:''}${a}</div>`}
+
+async function impact(){const s=await api(S.u.role==='donor'?'/my-impact':'/stats'),p=S.u.role==='donor';
+  return`<h2>${p?'Your impact':'Platform impact'}</h2><div class="stat"><div><b>${s.meals}</b>meals</div><div><b>${s.kg}</b>kg saved</div><div><b>${s.co2}</b>kg CO₂e</div></div>
+<p class="mut">${s.deliveries} completed deliveries${p?'':' · '+s.partners+' verified partners'}. Estimates use 0.4 kg per meal and 2.5 kg CO₂e per kg of food.</p>
+${p?`<button class="noprint" data-a="print">Print impact report</button>`:''}`}
+
+async function view(){const t=S.tab,u=S.u;
+  if(t==='share')return shareForm();
+  if(t==='impact')return impact();
+  if(t==='verify'){const L=await api('/admin/users');return'<h2>Receiving organisations</h2>'+(L.length?L.map(x=>`<div class="card"><div class="row"><b>${esc(x.org||x.name)}</b><span class="chip">${x.verified?'Verified':'Pending'}</span></div><div class="mut">${esc(x.name)} · ${esc(x.phone)} · ${esc(x.city)}</div><button class="${x.verified?'ghost':''}" data-a="verify" data-id="${x.id}" data-v="${x.verified?0:1}">${x.verified?'Remove verification':'Verify organisation'}</button></div>`).join(''):'<p class="mut">No organisations have registered yet.</p>')}
+  const L=await api('/donations?view='+t);
+  const warn=u.role==='receiver'&&!u.verified?'<div class="note">Your organisation is waiting for verification. You can browse, but you can claim food only after an admin approves you.</div>':'';
+  return warn+(L.length?L.map(card).join(''):`<p class="mut">${t==='open'?'No food is listed right now. Pull down to refresh or check back soon.':'Nothing here yet.'}</p>`)}
+
+async function go(tab){const app=$('#app');if(tab)S.tab=tab;
+  if(!S.u){app.innerHTML=authView();api('/stats').then(s=>{const m=$('#m');m&&(m.textContent=s.meals)}).catch(()=>{});return}
+  const tabs=TABS[S.u.role];if(!tabs.some(t=>t[0]===S.tab))S.tab=tabs[0][0];
+  app.innerHTML=`<div class="top"><div><span class="mark">رزق</span><small>${esc(S.u.org||S.u.name)} · ${S.u.role}</small></div><button class="ghost" style="width:auto;margin:0;padding:8px 12px" data-a="logout">Sign out</button></div><main id="v">Loading…</main>
+<nav>${tabs.map(t=>`<button class="${t[0]===S.tab?'on':''}" data-a="tab" data-id="${t[0]}">${t[1]}</button>`).join('')}</nav>`;
+  try{$('#v').innerHTML=await view()}catch(e){$('#v').innerHTML=`<p class="err">${esc(e.message==='Failed to fetch'?'Cannot reach the server. Check your internet connection and the server address.':e.message)}</p>`}}
+
+document.addEventListener('click',async e=>{const el=e.target.closest('[data-a]');if(!el)return;const a=el.dataset.a,id=el.dataset.id;
+  try{if(a==='mode'){S.mode=S.mode==='login'?'register':'login';return go()}
+    if(a==='logout')return out();if(a==='tab')return go(id);if(a==='print')return print();
+    if(a==='verify'){await api('/admin/verify/'+id,'POST',{verified:+el.dataset.v==1});return go()}
+    await api(`/donations/${id}/${a}`,'POST');toast({claim:'Claimed. Arrange pickup with the donor.',pickup:'Pickup confirmed.',deliver:'Delivery confirmed. Thank you.',cancel:'Post cancelled.'}[a]);go()
+  }catch(err){toast(err.message);go()}});
+document.addEventListener('submit',async e=>{e.preventDefault();const f=Object.fromEntries(new FormData(e.target));
+  try{if(e.target.id==='auth')return save(await api(S.mode==='register'?'/register':'/login','POST',f));
+    if(e.target.id==='share'){await api('/donations','POST',{...f,...(S.pos||{})});toast('Posted. Nearby organisations can now claim it.');go('mine')}
+  }catch(err){toast(err.message)}});
+if(S.u)locate();go();
+</script></body></html>
